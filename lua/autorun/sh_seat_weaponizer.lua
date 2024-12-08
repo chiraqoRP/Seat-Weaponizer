@@ -177,9 +177,14 @@ if CLIENT then
         end
     end)
 else
+    local enabled = CreateConVar("sv_seat_weaponizer", 1, FCVAR_ARCHIVE, "Enables/disables weapons being allowed in vehicles.", 0, 1)
     local pSetAllowWeaponsInVehicle = PLAYER.SetAllowWeaponsInVehicle
 
     hook.Add("PlayerEnteredVehicle", "SeatWeaponizer.Enable", function(ply, veh, role)
+        if !enabled:GetBool() then
+            return
+        end
+
         if ply:IsDriver(veh) then
             pSetAllowWeaponsInVehicle(ply, false)
 
