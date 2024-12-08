@@ -1,22 +1,13 @@
-local PLAYER = FindMetaTable("Player")
 local ENTITY = FindMetaTable("Entity")
-local pGetAllowWeaponsInVehicle = PLAYER.GetAllowWeaponsInVehicle
-local eEyePos = ENTITY.EyePos
-local vGetThirdPersonMode = FindMetaTable("Vehicle").GetThirdPersonMode
-local eGetTable = ENTITY.GetTable
 local eGetAngles = ENTITY.GetAngles
 
-local function GetEyePos(owner, vehicle, parent, parentT)
-    local eyePos = eEyePos(owner)
-
-    if vGetThirdPersonMode(vehicle) then
-        return eyePos
+local function GetOffsetEyePos(vehicle, parent, parentT, eyePos)
+    if !parent or parent == NULL or !(parentT.IsSimfphyscar or parent.IsGlideVehicle) then
+        return
     end
 
-    parentT = parentT or eGetTable(parent)
-
-    -- WORKAROUND: Simfphys vehicles can define a custom view origin via CalcVehicleView.
-    if parent and parent != NULL and parentT.IsSimfphyscar then
+    -- WORKAROUND: Simfphys and Glide vehicles can define a custom view origin via CalcVehicleView or CalcView respectively.
+    if parentT.IsSimfphyscar then
         local customView = parentT.customview
 
         -- HACK: customview is not present on SERVER by default.
@@ -47,9 +38,30 @@ local function GetEyePos(owner, vehicle, parent, parentT)
         end
 
         return sEyePos
+    elseif parentT.IsGlideVehicle then
+        local localEyePos = parent:WorldToLocal(eyePos)
+        local localPos = parent:GetFirstPersonOffset(vehicle:GetNWInt("GlideSeatIndex", 0), localEyePos)
+
+        return parent:LocalToWorld(localPos)
+    end
+end
+
+local PLAYER = FindMetaTable("Player")
+local pGetAllowWeaponsInVehicle = PLAYER.GetAllowWeaponsInVehicle
+local eEyePos = ENTITY.EyePos
+local vGetThirdPersonMode = FindMetaTable("Vehicle").GetThirdPersonMode
+local eGetTable = ENTITY.GetTable
+
+local function GetEyePos(owner, vehicle, parent, parentT)
+    local eyePos = eEyePos(owner)
+
+    if vGetThirdPersonMode(vehicle) then
+        return eyePos
     end
 
-    return eyePos
+    parentT = parentT or eGetTable(parent)
+
+    return GetOffsetEyePos(vehicle, parent, parentT, eyePos) or eyePos
 end
 
 local developer = GetConVar("developer")
