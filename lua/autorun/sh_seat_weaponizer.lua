@@ -103,9 +103,9 @@ hook.Add("EntityFireBullets", "SeatWeaponizer.AdjustSource", function(entity, da
 
     if developer:GetInt() >= 1 then
         if SERVER then
-            debugoverlay.Cross(data.Src + Vector(0, 0, 0), 10, 5, Color( 156, 241, 255, 200 ), true)
+            debugoverlay.Cross(data.Src, 10, 5, Color(156, 241, 255, 200), true)
         else
-            debugoverlay.Cross(data.Src + Vector(0, 0, 0), 10, 5, Color( 255, 221, 102, 255 ), true)
+            debugoverlay.Cross(data.Src, 10, 5, Color(255, 221, 102, 255), true)
         end
     end
 
