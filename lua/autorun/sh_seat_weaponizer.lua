@@ -79,7 +79,6 @@ hook.Add("EntityFireBullets", "SeatWeaponizer.AdjustSource", function(entity, da
 
     local vehicle = owner:GetVehicle()
     local vParent = vehicle:GetParent()
-    local vOwner = vehicle.EntOwner
     local eyePos = GetEyePos(owner, vehicle, vParent)
     local forward = owner:GetAimVector():Angle():Forward()
 
@@ -98,8 +97,6 @@ hook.Add("EntityFireBullets", "SeatWeaponizer.AdjustSource", function(entity, da
     -- ISSUE: https://github.com/Facepunch/garrysmod-requests/issues/1897 + https://github.com/Facepunch/garrysmod-requests/issues/969
     if IsValid(vParent) and vParent != NULL then
         data.IgnoreEntity = vParent
-    elseif IsValid(vOwner) then
-        data.IgnoreEntity = vOwner
     else
         data.IgnoreEntity = vehicle
     end
