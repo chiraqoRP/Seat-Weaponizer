@@ -167,14 +167,26 @@ if CLIENT then
     -- So instead, we get our EyePos adjusted by the custom view defined in the vehicle.
     hook.Add("CalcViewModelView", "SeatWeaponizer.SimfphysFix", function(wep, vm, oldPos, oldAng, pos, ang)
         local ply = eGetOwner(wep)
+
+        if !pGetAllowWeaponsInVehicle(ply) then
+            return
+        end
+
         local veh = pGetVehicle(ply)
 
-        if IsValid(veh) and veh.SPHYSchecked then
-            return GetEyePos(ply, veh, eGetParent(veh)), ang
+        if !IsValid(veh) then
+            return
+        end
+
+        local parent = eGetParent(veh)
+
+        if !IsValid(parent) or parent == NULL or !(parent.IsGlideVehicle or parent.IsSimfphyscar) then
+            return GetEyePos(ply, veh, parent), ang
         end
     end)
 else
     local enabled = CreateConVar("sv_seat_weaponizer", 1, FCVAR_ARCHIVE, "Enables/disables weapons being allowed in vehicles.", 0, 1)
+    local passengersOnly = CreateConVar("sv_seat_weaponizer_passengers_only", 0, FCVAR_ARCHIVE, "Enables/disables weapons being allowed only for passengers.", 0, 1)
     local pSetAllowWeaponsInVehicle = PLAYER.SetAllowWeaponsInVehicle
 
     hook.Add("PlayerEnteredVehicle", "SeatWeaponizer.Enable", function(ply, veh, role)
@@ -182,7 +194,7 @@ else
             return
         end
 
-        if ply:IsDriver(veh) then
+        if !passengersOnly:GetBool() and ply:IsDriver(veh) then
             pSetAllowWeaponsInVehicle(ply, false)
 
             return
