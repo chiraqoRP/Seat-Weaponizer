@@ -181,8 +181,10 @@ if CLIENT then
         local parent = eGetParent(veh)
 
         if !IsValid(parent) or parent == NULL or !(parent.IsGlideVehicle or parent.IsSimfphyscar) then
-            return GetEyePos(ply, veh, parent), ang
+            return
         end
+
+        return GetEyePos(ply, veh, parent), ang
     end)
 else
     local enabled = CreateConVar("sv_seat_weaponizer", 1, FCVAR_ARCHIVE, "Enables/disables weapons being allowed in vehicles.", 0, 1)
@@ -194,7 +196,9 @@ else
             return
         end
 
-        if !passengersOnly:GetBool() and ply:IsDriver(veh) then
+        local vehicle = CLib.GetVehicle(veh)
+
+        if passengersOnly:GetBool() and ply:IsDriver(vehicle) then
             pSetAllowWeaponsInVehicle(ply, false)
 
             return
