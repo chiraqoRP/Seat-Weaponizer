@@ -172,6 +172,11 @@ if CLIENT then
             return
         end
 
+        -- WORKAROUND: Users have been reporting crashes with TacRP weapons in simfphys vehicles.
+        if wep.ArcticTacRP then
+            return
+        end
+
         local veh = pGetVehicle(ply)
 
         if !IsValid(veh) then
