@@ -203,6 +203,8 @@ else
 
         local vehicle = CLib.GetVehicle(veh)
 
+        -- HACK: Glide vehicles can have turrets, but not every vehicle has the Turret/TurretSeat NW vars.
+        -- REFERENCE: https://github.com/StyledStrike/gmod-glide/blob/main/lua/entities/gtav_insurgent.lua#L208
         if vehicle.IsGlideVehicle then
             local getTurretSeat = vehicle.GetTurretSeat
 
