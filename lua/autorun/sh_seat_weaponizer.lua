@@ -203,6 +203,20 @@ else
 
         local vehicle = CLib.GetVehicle(veh)
 
+        if vehicle.IsGlideVehicle then
+            local getTurretSeat = vehicle.GetTurretSeat
+
+            if isfunction(getTurretSeat) then
+                local turretSeat = getTurretSeat(vehicle)
+
+                if IsValid(turretSeat) and turretSeat != NULL and turretSeat == veh then
+                    pSetAllowWeaponsInVehicle(ply, false)
+
+                    return
+                end
+            end
+        end
+
         if passengersOnly:GetBool() and ply:IsDriver(vehicle) then
             pSetAllowWeaponsInVehicle(ply, false)
 
