@@ -168,7 +168,7 @@ if CLIENT then
     hook.Add("CalcViewModelView", "SeatWeaponizer.SimfphysFix", function(wep, vm, oldPos, oldAng, pos, ang)
         local ply = eGetOwner(wep)
 
-        if !pGetAllowWeaponsInVehicle(ply) then
+        if !IsValid(ply) or ply == NULL or !pGetAllowWeaponsInVehicle(ply) then
             return
         end
 
