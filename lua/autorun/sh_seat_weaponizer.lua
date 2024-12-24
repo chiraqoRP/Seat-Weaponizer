@@ -219,7 +219,7 @@ else
             end
         end
 
-        if passengersOnly:GetBool() and ply:IsDriver(vehicle) then
+        if passengersOnly:GetBool() and ply:IsDriver(vehicle) and !vehicle.playerdynseat then
             pSetAllowWeaponsInVehicle(ply, false)
 
             return
