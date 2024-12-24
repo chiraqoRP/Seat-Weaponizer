@@ -1,7 +1,7 @@
 local ENTITY = FindMetaTable("Entity")
 local eGetAngles = ENTITY.GetAngles
 
-local function GetOffsetEyePos(vehicle, parent, parentT, eyePos)
+local function GetOffsetEyePos(owner, vehicle, parent, parentT, eyePos)
     if !parent or parent == NULL or !(parentT.IsSimfphyscar or parent.IsGlideVehicle) then
         return
     end
@@ -40,7 +40,7 @@ local function GetOffsetEyePos(vehicle, parent, parentT, eyePos)
         return sEyePos
     elseif parentT.IsGlideVehicle then
         local localEyePos = parent:WorldToLocal(eyePos)
-        local localPos = parent:GetFirstPersonOffset(vehicle:GetNWInt("GlideSeatIndex", 0), localEyePos)
+        local localPos = parent:GetFirstPersonOffset(owner:GlideGetSeatIndex(), localEyePos)
 
         return parent:LocalToWorld(localPos)
     end
@@ -61,7 +61,7 @@ local function GetEyePos(owner, vehicle, parent, parentT)
 
     parentT = parentT or eGetTable(parent)
 
-    return GetOffsetEyePos(vehicle, parent, parentT, eyePos) or eyePos
+    return GetOffsetEyePos(owner, vehicle, parent, parentT, eyePos) or eyePos
 end
 
 local developer = GetConVar("developer")
@@ -156,6 +156,46 @@ hook.Add("VehicleMove", "swcs.ProcessActivities", function(ply, veh, mv)
 
         tbl.m_bProcessActivities = false
     end
+end)
+
+local hud_fastswitch = GetConVar("hud_fastswitch")
+local blacklist = {
+    ["weapon_physgun"] = true,
+    ["gmod_tool"] = true,
+    ["gmod_camera"] = true,
+    ["weapon_physcannon"] = true,
+    ["weapon_crowbar"] = true,
+    ["weapon_stunstick"] = true
+}
+
+-- Actually selects the weapon that was last picked up, which is good enough for our use-case.
+local function SelectBestWeapon(ply)
+    local pWeapons = ply:GetWeapons()
+
+    for i = #pWeapons, 1, -1 do
+        local weapon = pWeapons[i]
+
+        if IsValid(weapon) and weapon != NULL and !blacklist[weapon:GetClass()] then
+            input.SelectWeapon(weapon)
+
+            break
+        end
+    end
+end
+
+hook.Add("PlayerSwitchWeapon", "SeatWeaponizer.Blacklist", function(ply, oldWeapon, newWeapon)
+	if !pGetAllowWeaponsInVehicle(ply) or newWeapon == NULL or !blacklist[newWeapon:GetClass()] then
+        return
+    end
+
+    -- WORKAROUND: Setting hud_fastswitch to 1 prevents switching to any valid weapon with this hook.
+    -- This is because our oldWeapon is NULL, but the surrounding weapons are almost always weapon_physgun and gmod_toll.
+    -- We fix this by switching to the newest weapon that isn't blacklisted.
+    if CLIENT and hud_fastswitch:GetBool() and oldWeapon == NULL and IsFirstTimePredicted() then
+        SelectBestWeapon(ply)
+    end
+
+    return true
 end)
 
 if CLIENT then
