@@ -1,67 +1,77 @@
 local ENTITY = FindMetaTable("Entity")
+local PLAYER = FindMetaTable("Player")
 local eGetAngles = ENTITY.GetAngles
 
-local function GetOffsetEyePos(owner, vehicle, parent, parentT, eyePos)
-    if !parent or parent == NULL or !(parentT.IsSimfphyscar or parent.IsGlideVehicle) then
-        return
-    end
+local function GetSimfphysOffset(owner, vehicle, parent, parentT, eyePos, eyeAng)
+    local customView = parentT.customview
 
-    -- WORKAROUND: Simfphys and Glide vehicles can define a custom view origin via CalcVehicleView or CalcView respectively.
-    if parentT.IsSimfphyscar then
-        local customView = parentT.customview
+    -- HACK: ENT.customview is not present on SERVER by default.
+    if !parentT.customview then
+        local vehicleList = list.GetForEdit("simfphys_vehicles")[parent:GetSpawn_List()]
 
-        -- HACK: customview is not present on SERVER by default.
-        if !parentT.customview then
-            local vehicleList = list.GetForEdit("simfphys_vehicles")[parent:GetSpawn_List()]
-
-            if vehicleList and vehicleList.Members.FirstPersonViewPos then
-                parent.customview = vehicleList.Members.FirstPersonViewPos
-            else
-                parent.customview = Vector(0, -9, 5)
-            end
-
-            customView = parent.customview
-        end
-
-        local isDriver = vehicle == parent:GetDriverSeat()
-        local sEyePos = Vector(0, 0, 0)
-        sEyePos:Set(eyePos)
-
-        local vAngles = eGetAngles(vehicle)
-
-        if isDriver then
-            sEyePos:Add(vAngles:Forward() * customView.x)
-            sEyePos:Add(vAngles:Right() * customView.y)
-            sEyePos:Add(vAngles:Up() * customView.z)
+        if vehicleList and vehicleList.Members.FirstPersonViewPos then
+            parent.customview = vehicleList.Members.FirstPersonViewPos
         else
-            sEyePos:Add(vAngles:Up() * 5)
+            parent.customview = Vector(0, -9, 5)
         end
 
-        return sEyePos
-    elseif parentT.IsGlideVehicle then
-        local localEyePos = parent:WorldToLocal(eyePos)
-        local localPos = parent:GetFirstPersonOffset(owner:GlideGetSeatIndex(), localEyePos)
-
-        return parent:LocalToWorld(localPos)
+        customView = parent.customview
     end
+
+    local isDriver = vehicle == parent:GetDriverSeat()
+    local sEyePos = Vector(0, 0, 0)
+    sEyePos:Set(eyePos)
+
+    local vAngles = eGetAngles(vehicle)
+
+    if isDriver then
+        sEyePos:Add(vAngles:Forward() * customView.x)
+        sEyePos:Add(vAngles:Right() * customView.y)
+        sEyePos:Add(vAngles:Up() * customView.z)
+    else
+        sEyePos:Add(vAngles:Up() * 5)
+    end
+
+    return sEyePos, eyeAng
 end
 
-local PLAYER = FindMetaTable("Player")
+local function GetGlideOffset(owner, parent, parentT, eyePos)
+    local localEyePos = parent:WorldToLocal(eyePos)
+    local localPos = parent:GetFirstPersonOffset(owner:GlideGetSeatIndex(), localEyePos)
+
+    if CLIENT then
+        eyeAng = Glide.Camera.angles
+    else
+        eyeAng = owner.GlideCam.angle
+    end
+
+    return parent:LocalToWorld(localPos), eyeAng
+end
+
 local pGetAllowWeaponsInVehicle = PLAYER.GetAllowWeaponsInVehicle
 local eEyePos = ENTITY.EyePos
-local vGetThirdPersonMode = FindMetaTable("Vehicle").GetThirdPersonMode
 local eGetTable = ENTITY.GetTable
 
-local function GetEyePos(owner, vehicle, parent, parentT)
+local function GetEyeOffset(owner, vehicle, parent, parentT)
     local eyePos = eEyePos(owner)
 
-    if vGetThirdPersonMode(vehicle) then
+    if !IsValid(parent) then
         return eyePos
     end
 
     parentT = parentT or eGetTable(parent)
 
-    return GetOffsetEyePos(owner, vehicle, parent, parentT, eyePos) or eyePos
+    if !parentT.IsSimfphyscar and !parentT.IsGlideVehicle then
+        return eyePos
+    end
+
+    if parentT.IsGlideVehicle then
+        eyePos, eyeAng = GetGlideOffset(owner, parent, parentT, eyePos)
+    else
+        eyePos, eyeAng = GetSimfphysOffset(owner, vehicle, parent, parentT, eyePos, eyeAng)
+    end
+
+    return eyePos, eyeAng
 end
 
 local developer = GetConVar("developer")
@@ -79,7 +89,7 @@ hook.Add("EntityFireBullets", "SeatWeaponizer.AdjustSource", function(entity, da
 
     local vehicle = owner:GetVehicle()
     local vParent = vehicle:GetParent()
-    local eyePos = GetEyePos(owner, vehicle, vParent)
+    local eyePos, eyeAng = GetEyeOffset(owner, vehicle, vParent)
     local forward = owner:GetAimVector():Angle():Forward()
 
     -- This traces backwards into the vehicle, hitting the closest point outside the vehicle pointing to the player's EyePos (shootpos).
@@ -94,8 +104,12 @@ hook.Add("EntityFireBullets", "SeatWeaponizer.AdjustSource", function(entity, da
     -- WORKAROUND: Some weapon bases really don't like being so close to a solid object, so we move the bullet Src forward a bit.
     data.Src = trace.HitPos + forward * 8
 
+    if eyeAng then
+        data.Dir = eyeAng:Forward()
+    end
+
     -- ISSUE: https://github.com/Facepunch/garrysmod-requests/issues/1897 + https://github.com/Facepunch/garrysmod-requests/issues/969
-    if IsValid(vParent) and vParent != NULL then
+    if IsValid(vParent) then
         data.IgnoreEntity = vParent
     else
         data.IgnoreEntity = vehicle
@@ -125,7 +139,7 @@ end)
 
 --     local vParent = vehicle:GetParent()
 
---     if vParent and vParent != NULL then
+--     if IsValid(vParent) then
 --         table.insert(filter, vParent)
 --     end
 -- end)
@@ -141,7 +155,7 @@ hook.Add("VehicleMove", "swcs.ProcessActivities", function(ply, veh, mv)
 
     local wep = pGetActiveWeapon(ply)
 
-    if !IsValid(wep) or wep == NULL then
+    if !IsValid(wep) then
         return
     end
 
@@ -175,7 +189,7 @@ local function SelectBestWeapon(ply)
     for i = #pWeapons, 1, -1 do
         local weapon = pWeapons[i]
 
-        if IsValid(weapon) and weapon != NULL and !blacklist[weapon:GetClass()] then
+        if IsValid(weapon) and !blacklist[weapon:GetClass()] then
             input.SelectWeapon(weapon)
 
             break
@@ -184,14 +198,14 @@ local function SelectBestWeapon(ply)
 end
 
 hook.Add("PlayerSwitchWeapon", "SeatWeaponizer.Blacklist", function(ply, oldWeapon, newWeapon)
-	if !pGetAllowWeaponsInVehicle(ply) or newWeapon == NULL or !blacklist[newWeapon:GetClass()] then
+	if !pGetAllowWeaponsInVehicle(ply) or !IsValid(newWeapon) or !blacklist[newWeapon:GetClass()] then
         return
     end
 
     -- WORKAROUND: Setting hud_fastswitch to 1 prevents switching to any valid weapon with this hook.
-    -- This is because our oldWeapon is NULL, but the surrounding weapons are almost always weapon_physgun and gmod_toll.
+    -- This is because our oldWeapon is NULL, but the surrounding weapons are almost always weapon_physgun and gmod_tool.
     -- We fix this by switching to the newest weapon that isn't blacklisted.
-    if CLIENT and hud_fastswitch:GetBool() and oldWeapon == NULL and IsFirstTimePredicted() then
+    if CLIENT and hud_fastswitch:GetBool() and !IsValid(oldWeapon) and IsFirstTimePredicted() then
         SelectBestWeapon(ply)
     end
 
@@ -203,12 +217,12 @@ if CLIENT then
     local pGetVehicle = PLAYER.GetVehicle
     local eGetParent = ENTITY.GetParent
 
-    -- HACK: Simfphys vehicles modify the seats normal view origin via CalcVehicleView, this makes viewmodels heavily offset.
+    -- HACK: Simfphys and Glide vehicles modify the seats normal view origin via CalcVehicleView, this makes viewmodels heavily offset.
     -- So instead, we get our EyePos adjusted by the custom view defined in the vehicle.
     hook.Add("CalcViewModelView", "SeatWeaponizer.SimfphysFix", function(wep, vm, oldPos, oldAng, pos, ang)
         local ply = eGetOwner(wep)
 
-        if !IsValid(ply) or ply == NULL or !pGetAllowWeaponsInVehicle(ply) then
+        if !IsValid(ply) or !IsValid(wep) or !pGetAllowWeaponsInVehicle(ply) then
             return
         end
 
@@ -225,11 +239,13 @@ if CLIENT then
 
         local parent = eGetParent(veh)
 
-        if !IsValid(parent) or parent == NULL or !(parent.IsGlideVehicle or parent.IsSimfphyscar) then
+        if !IsValid(parent) or !(parent.IsSimfphyscar or parent.IsGlideVehicle) then
             return
         end
 
-        return GetEyePos(ply, veh, parent), ang
+        local vPos, vAng = GetEyeOffset(ply, veh, parent)
+
+        return vPos, vAng
     end)
 else
     local enabled = CreateConVar("sv_seat_weaponizer", 1, FCVAR_ARCHIVE, "Enables/disables weapons being allowed in vehicles.", 0, 1)
@@ -251,7 +267,7 @@ else
             if isfunction(getTurretSeat) then
                 local turretSeat = getTurretSeat(vehicle)
 
-                if IsValid(turretSeat) and turretSeat != NULL and turretSeat == veh then
+                if IsValid(turretSeat) and turretSeat == veh then
                     pSetAllowWeaponsInVehicle(ply, false)
 
                     return
