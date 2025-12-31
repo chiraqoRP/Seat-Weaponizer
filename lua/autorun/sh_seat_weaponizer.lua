@@ -42,7 +42,7 @@ local function GetGlideOffset(owner, parent, parentT, eyePos)
     if CLIENT then
         eyeAng = Glide.Camera.angles
     else
-        eyeAng = owner.GlideCam.angle
+        eyeAng = owner:LocalEyeAngles()
     end
 
     return parent:LocalToWorld(localPos), eyeAng
